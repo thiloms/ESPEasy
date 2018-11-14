@@ -17,7 +17,7 @@ boolean Plugin_029(byte function, struct EventStruct *event, String& string)
     case PLUGIN_DEVICE_ADD:
       {
         Device[++deviceCount].Number = PLUGIN_ID_029;
-        Device[deviceCount].Type = DEVICE_TYPE_SINGLE;
+        Device[deviceCount].Type = DEVICE_TYPE_SINGLE; // FIXME TD-er: Does this need a pin? Seems not to be used
         Device[deviceCount].VType = SENSOR_TYPE_SWITCH;
         Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
@@ -53,7 +53,7 @@ boolean Plugin_029(byte function, struct EventStruct *event, String& string)
         addHtml(F("<TR><TD>IDX:<TD>"));
         String id = F("TDID");   //="taskdeviceid"
         id += controllerNr + 1;
-        addNumericBox(id, Settings.TaskDeviceID[controllerNr][event->TaskIndex], 0, 9999);
+        addNumericBox(id, Settings.TaskDeviceID[controllerNr][event->TaskIndex], 0, DOMOTICZ_MAX_IDX);
         success = true;
         break;
       }

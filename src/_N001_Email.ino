@@ -38,8 +38,8 @@ boolean NPlugin_001(byte function, struct EventStruct *event, String& string)
 	//
 	//     if (command == F("email"))
 	//     {
-	//       NotificationSettingsStruct NotificationSettings;
-	//       LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettings));
+	//       MakeNotificationSettings(NotificationSettings);
+	//       LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
 	//       NPlugin_001_send(NotificationSettings.Domain, NotificationSettings.Receiver, NotificationSettings.Sender, NotificationSettings.Subject, NotificationSettings.Body, NotificationSettings.Server, NotificationSettings.Port);
 	//       success = true;
 	//     }
@@ -48,8 +48,8 @@ boolean NPlugin_001(byte function, struct EventStruct *event, String& string)
 
 	case NPLUGIN_NOTIFY:
 	{
-		NotificationSettingsStruct NotificationSettings;
-		LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettings));
+		MakeNotificationSettings(NotificationSettings);
+		LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
 		String subject = NotificationSettings.Subject;
 		String body = "";
 		if (event->String1.length() > 0)
@@ -73,6 +73,7 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 
 	// Use WiFiClient class to create TCP connections
 	WiFiClient client;
+	client.setTimeout(CONTROLLER_CLIENTTIMEOUT_DFLT);
 	String aHost = notificationsettings.Server;
 	addLog(LOG_LEVEL_DEBUG, String(F("EMAIL: Connecting to ")) + aHost + notificationsettings.Port);
 	if (client.connect(aHost.c_str(), notificationsettings.Port) != 1) {
@@ -89,12 +90,30 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 			"X-Mailer: EspEasy v$espeasyversion\r\n\r\n"
 			);
 
+    String email_address = notificationsettings.Sender;
+		int pos_less = email_address.indexOf('<');
+		if (pos_less == -1) {
+			// No email address markup
+			mailheader.replace(String(F("$nodename")), Settings.Name);
+			mailheader.replace(String(F("$emailfrom")), notificationsettings.Sender);
+		} else {
+			String senderName = email_address.substring(0, pos_less);
+			senderName.replace("\"", ""); // Remove quotes
+			String address = email_address.substring(pos_less + 1);
+			address.replace("<", "");
+			address.replace(">", "");
+			address.trim();
+			senderName.trim();
+			mailheader.replace(String(F("$nodename")), senderName);
+			mailheader.replace(String(F("$emailfrom")), address);
+		}
+
 		mailheader.replace(String(F("$nodename")), Settings.Name);
 		mailheader.replace(String(F("$emailfrom")), notificationsettings.Sender);
 		mailheader.replace(String(F("$ato")), notificationsettings.Receiver);
 		mailheader.replace(String(F("$subject")), aSub);
 		mailheader.replace(String(F("$espeasyversion")), String(BUILD));
-		aMesg.replace(F("\r"), F("<br/>")); // re-write line breaks for Content-type: text/html
+		aMesg.replace("\r", F("<br/>")); // re-write line breaks for Content-type: text/html
 
 		// Wait for Client to Start Sending
 		// The MTA Exchange
@@ -169,13 +188,13 @@ boolean NPlugin_001_MTA(WiFiClient& client, String aStr, const String &aWaitForP
 	backgroundtasks();
 	while (true) {
 		if (timeOutReached(timer)) {
-			String log = F("Plugin_001_MTA: timeout. ");
+			String log = F("NPlugin_001_MTA: timeout. ");
 			log += aStr;
 			addLog(LOG_LEVEL_ERROR, log);
 			return false;
 		}
 
-		yield();
+		delay(0);
 
 		// String line = client.readStringUntil('\n');
 		String line;
