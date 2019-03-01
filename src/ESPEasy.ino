@@ -1,4 +1,6 @@
 
+#include <Arduino.h>
+
 #ifdef CONTINUOUS_INTEGRATION
 #pragma GCC diagnostic error "-Wall"
 #else
@@ -82,6 +84,8 @@
 
 // Define globals before plugin sets to allow a personal override of the selected plugins
 #include "ESPEasy-Globals.h"
+// Must be included after all the defines, since it is using TASKS_MAX
+#include "_Plugin_Helper.h"
 #include "define_plugin_sets.h"
 // Plugin helper needs the defined controller sets, thus include after 'define_plugin_sets.h'
 #include "_CPlugin_Helper.h"
@@ -101,6 +105,19 @@ int firstEnabledBlynkController() {
 
 //void checkRAM( const __FlashStringHelper* flashString);
 
+#ifdef CORE_POST_2_5_0
+/*********************************************************************************************\
+ * Pre-init
+\*********************************************************************************************/
+void preinit() {
+  // Global WiFi constructors are not called yet
+  // (global class instances like WiFi, Serial... are not yet initialized)..
+  // No global object methods or C++ exceptions can be called in here!
+  //The below is a static class method, which is similar to a function, so it's ok.
+  ESP8266WiFiClass::preinitWiFiOff();
+}
+#endif
+
 /*********************************************************************************************\
  * SETUP
 \*********************************************************************************************/
@@ -111,10 +128,11 @@ void setup()
 #endif
   WiFi.persistent(false); // Do not use SDK storage of SSID/WPA parameters
   WiFi.setAutoReconnect(false);
-  setWifiMode(WIFI_OFF);
+  WiFi.mode(WIFI_OFF);
   lowestFreeStack = getFreeStackWatermark();
   lowestRAM = FreeMem();
 
+  resetPluginTaskData();
   Plugin_id.resize(PLUGIN_MAX);
   Task_id_to_Plugin_id.resize(TASKS_MAX);
 
@@ -125,7 +143,7 @@ void setup()
   #endif
 
   Serial.begin(115200);
-  // Serial.print("\n\n\nBOOOTTT\n\n\n");
+  // serialPrint("\n\n\nBOOOTTT\n\n\n");
 
   initLog();
 
@@ -142,7 +160,7 @@ void setup()
 
   if (SpiffsSectors() < 32)
   {
-    Serial.println(F("\nNo (or too small) SPIFFS area..\nSystem Halted\nPlease reflash with 128k SPIFFS minimum!"));
+    serialPrintln(F("\nNo (or too small) SPIFFS area..\nSystem Halted\nPlease reflash with 128k SPIFFS minimum!"));
     while (true)
       delay(1);
   }
@@ -196,6 +214,7 @@ void setup()
   fileSystemCheck();
   progMemMD5check();
   LoadSettings();
+  Settings.UseRTOSMultitasking = false; // For now, disable it, we experience heap corruption.
   if (RTC.bootFailedCount > 10 && RTC.bootCounter > 10) {
     byte toDisable = RTC.bootFailedCount - 10;
     toDisable = disablePlugin(toDisable);
@@ -215,11 +234,11 @@ void setup()
   if (Settings.Version != VERSION || Settings.PID != ESP_PROJECT_PID)
   {
     // Direct Serial is allowed here, since this is only an emergency task.
-    Serial.print(F("\nPID:"));
-    Serial.println(Settings.PID);
-    Serial.print(F("Version:"));
-    Serial.println(Settings.Version);
-    Serial.println(F("INIT : Incorrect PID or version!"));
+    serialPrint(F("\nPID:"));
+    serialPrintln(String(Settings.PID));
+    serialPrint(F("Version:"));
+    serialPrintln(String(Settings.Version));
+    serialPrintln(F("INIT : Incorrect PID or version!"));
     delay(1000);
     ResetFactory();
   }
@@ -303,7 +322,7 @@ void setup()
 
   sendSysInfoUDP(3);
 
-  if (Settings.UseNTP)
+  if (systemTimePresent())
     initTime();
 
 #if FEATURE_ADC_VCC
@@ -403,7 +422,7 @@ int firstEnabledMQTTController() {
 bool getControllerProtocolDisplayName(byte ProtocolIndex, byte parameterIdx, String& protoDisplayName) {
   EventStruct tmpEvent;
   tmpEvent.idx=parameterIdx;
-  return CPlugin_ptr[ProtocolIndex](CPLUGIN_GET_PROTOCOL_DISPLAY_NAME, &tmpEvent, protoDisplayName);
+  return CPluginCall(ProtocolIndex, CPLUGIN_GET_PROTOCOL_DISPLAY_NAME, &tmpEvent, protoDisplayName);
 }
 
 void updateLoopStats() {
@@ -436,6 +455,7 @@ void updateLoopStats_30sec(byte loglevel) {
 
   msecTimerHandler.updateIdleTimeStats();
 
+#ifndef BUILD_NO_DEBUG
   if (loglevelActiveFor(loglevel)) {
     String log = F("LoopStats: shortestLoop: ");
     log += shortestLoop;
@@ -451,6 +471,7 @@ void updateLoopStats_30sec(byte loglevel) {
     log += countFindPluginId;
     addLog(loglevel, log);
   }
+#endif
   countFindPluginId = 0;
   loop_usec_duration_total = 0;
   loopCounter_full = 1;
@@ -486,7 +507,7 @@ void loop()
     WiFiConnectRelaxed();
     wifiSetupConnect = false;
   }
-  if (wifiStatus != ESPEASY_WIFI_SERVICES_INITIALIZED || unprocessedWifiEvents()) {
+  if ((wifiStatus != ESPEASY_WIFI_SERVICES_INITIALIZED) || unprocessedWifiEvents()) {
     // WiFi connection is not yet available, so introduce some extra delays to
     // help the background tasks managing wifi connections
     delay(1);
@@ -596,22 +617,6 @@ void runPeriodicalMQTT() {
   }
 }
 
-String getMQTT_state() {
-  switch (MQTTclient.state()) {
-    case MQTT_CONNECTION_TIMEOUT     : return F("Connection timeout");
-    case MQTT_CONNECTION_LOST        : return F("Connection lost");
-    case MQTT_CONNECT_FAILED         : return F("Connect failed");
-    case MQTT_DISCONNECTED           : return F("Disconnected");
-    case MQTT_CONNECTED              : return F("Connected");
-    case MQTT_CONNECT_BAD_PROTOCOL   : return F("Connect bad protocol");
-    case MQTT_CONNECT_BAD_CLIENT_ID  : return F("Connect bad client_id");
-    case MQTT_CONNECT_UNAVAILABLE    : return F("Connect unavailable");
-    case MQTT_CONNECT_BAD_CREDENTIALS: return F("Connect bad credentials");
-    case MQTT_CONNECT_UNAUTHORIZED   : return F("Connect unauthorized");
-    default: return "";
-  }
-}
-
 void updateMQTTclient_connected() {
   if (MQTTclient_connected != MQTTclient.connected()) {
     MQTTclient_connected = !MQTTclient_connected;
@@ -661,7 +666,8 @@ void run10TimesPerSecond() {
   }
   {
     START_TIMER;
-    PluginCall(PLUGIN_UNCONDITIONAL_POLL, 0, dummyString);
+//    PluginCall(PLUGIN_UNCONDITIONAL_POLL, 0, dummyString);
+    PluginCall(PLUGIN_MONITOR, 0, dummyString);
     STOP_TIMER(PLUGIN_CALL_10PSU);
   }
   if (Settings.UseRules && eventBuffer.length() > 0)
@@ -706,12 +712,7 @@ void runOncePerSecond()
         }
       case CMD_REBOOT:
         {
-          #if defined(ESP8266)
-            ESP.reset();
-          #endif
-          #if defined(ESP32)
-            ESP.restart();
-          #endif
+          reboot();
           break;
         }
     }
@@ -720,7 +721,7 @@ void runOncePerSecond()
   WifiCheck();
 
   // clock events
-  if (Settings.UseNTP)
+  if (systemTimePresent())
     checkTime();
 
 //  unsigned long start = micros();
@@ -750,15 +751,15 @@ void runOncePerSecond()
 /*
   if (Settings.SerialLogLevel == LOG_LEVEL_DEBUG_DEV)
   {
-    Serial.print(F("Plugin calls: 50 ps:"));
-    Serial.print(elapsed50ps);
-    Serial.print(F(" uS, 10 ps:"));
-    Serial.print(elapsed10ps);
-    Serial.print(F(" uS, 10 psU:"));
-    Serial.print(elapsed10psU);
-    Serial.print(F(" uS, 1 ps:"));
-    Serial.print(elapsed);
-    Serial.println(F(" uS"));
+    serialPrint(F("Plugin calls: 50 ps:"));
+    serialPrint(elapsed50ps);
+    serialPrint(F(" uS, 10 ps:"));
+    serialPrint(elapsed10ps);
+    serialPrint(F(" uS, 10 psU:"));
+    serialPrint(elapsed10psU);
+    serialPrint(F(" uS, 1 ps:"));
+    serialPrint(elapsed);
+    serialPrintln(F(" uS"));
     elapsed50ps=0;
     elapsed10ps=0;
     elapsed10psU=0;
@@ -771,12 +772,14 @@ void runOncePerSecond()
 void logTimerStatistics() {
   byte loglevel = LOG_LEVEL_DEBUG;
   updateLoopStats_30sec(loglevel);
+#ifndef BUILD_NO_DEBUG
 //  logStatistics(loglevel, true);
   if (loglevelActiveFor(loglevel)) {
     String queueLog = F("Scheduler stats: (called/tasks/max_length/idle%) ");
     queueLog += msecTimerHandler.getQueueStats();
     addLog(loglevel, queueLog);
   }
+#endif
 }
 
 /*********************************************************************************************\
@@ -796,6 +799,8 @@ void runEach30Seconds()
     log += connectionFailures;
     log += F(" FreeMem ");
     log += FreeMem();
+    log += F(" WiFiStatus ");
+    log += wifiStatus;
     addLog(LOG_LEVEL_INFO, log);
   }
   sendSysInfoUDP(1);
@@ -838,7 +843,7 @@ void SensorSendTask(byte TaskIndex)
   {
     byte varIndex = TaskIndex * VARS_PER_TASK;
 
-    boolean success = false;
+    bool success = false;
     byte DeviceIndex = getDeviceIndex(Settings.TaskDeviceNumber[TaskIndex]);
     LoadTaskSettings(TaskIndex);
 
@@ -905,36 +910,52 @@ void backgroundtasks()
   {
     return;
   }
+  START_TIMER
+  const bool wifiConnected = WiFiConnected();
   runningBackgroundTasks=true;
 
   #if defined(ESP8266)
+  if (wifiConnected) {
     tcpCleanup();
+  }
   #endif
-  process_serialLogBuffer();
+  process_serialWriteBuffer();
   if(!UseRTOSMultitasking){
-    if (Settings.UseSerial)
-      if (Serial.available())
-        if (!PluginCall(PLUGIN_SERIAL_IN, 0, dummyString))
-          serial();
-    WebServer.handleClient();
-    checkUDP();
+    if (Settings.UseSerial && Serial.available()) {
+      if (!PluginCall(PLUGIN_SERIAL_IN, 0, dummyString)) {
+        serial();
+      }
+    }
+    if (wifiConnected) {
+      WebServer.handleClient();
+      checkUDP();
+    }
   }
 
   // process DNS, only used if the ESP has no valid WiFi config
-  if (dnsServerActive)
+  if (dnsServerActive && wifiConnected)
     dnsServer.processNextRequest();
 
   #ifdef FEATURE_ARDUINO_OTA
-  if(Settings.ArduinoOTAEnable)
+  if(Settings.ArduinoOTAEnable && wifiConnected)
     ArduinoOTA.handle();
 
   //once OTA is triggered, only handle that and dont do other stuff. (otherwise it fails)
   while (ArduinoOTAtriggered)
   {
     delay(0);
-    ArduinoOTA.handle();
+    if (WiFiConnected()) {
+      ArduinoOTA.handle();
+    }
   }
 
+  #endif
+
+  #ifdef FEATURE_MDNS
+  // Allow MDNS processing
+  if (wifiConnected) {
+    MDNS.update();
+  }
   #endif
 
   delay(0);
@@ -942,4 +963,5 @@ void backgroundtasks()
   statusLED(false);
 
   runningBackgroundTasks=false;
+  STOP_TIMER(BACKGROUND_TASKS);
 }

@@ -7,9 +7,9 @@
 #define CPLUGIN_ID_006         6
 #define CPLUGIN_NAME_006       "PiDome MQTT"
 
-boolean CPlugin_006(byte function, struct EventStruct *event, String& string)
+bool CPlugin_006(byte function, struct EventStruct *event, String& string)
 {
-  boolean success = false;
+  bool success = false;
 
   switch (function)
   {
@@ -86,7 +86,7 @@ boolean CPlugin_006(byte function, struct EventStruct *event, String& string)
 
     case CPLUGIN_PROTOCOL_SEND:
       {
-        if (!WiFiConnected(100)) {
+        if (!WiFiConnected(10)) {
           success = false;
           break;
         }

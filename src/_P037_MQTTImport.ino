@@ -32,6 +32,8 @@ String getClientName() {
   //
   String tmpClientName = F("%sysname%-Import");
   String ClientName = parseTemplate(tmpClientName, 20);
+  ClientName.trim(); // Avoid spaced in the name.
+  ClientName.replace(' ', '_');
   if (reconnectCount != 0) ClientName += reconnectCount;
   return ClientName;
 }
@@ -134,13 +136,17 @@ boolean Plugin_037(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_SAVE:
       {
-        String argName;
-
+        String error;
         for (byte varNr = 0; varNr < 4; varNr++)
         {
-          argName = F("p037_template");
+          String argName = F("p037_template");
           argName += varNr + 1;
-          strncpy(deviceTemplate[varNr], WebServer.arg(argName).c_str(), sizeof(deviceTemplate[varNr]));
+          if (!safe_strncpy(deviceTemplate[varNr], WebServer.arg(argName).c_str(), sizeof(deviceTemplate[varNr]))) {
+            error += getCustomTaskSettingsError(varNr);
+          }
+        }
+        if (error.length() > 0) {
+          addHtmlError(error);
         }
 
         SaveCustomTaskSettings(event->TaskIndex, (byte*)&deviceTemplate, sizeof(deviceTemplate));
@@ -439,7 +445,7 @@ boolean MQTTConnect_037()
 //
 // Check to see if Topic matches the MQTT subscription
 //
-boolean MQTTCheckSubscription_037(String Topic, String Subscription) {
+boolean MQTTCheckSubscription_037(const String& Topic, const String& Subscription) {
 
   String tmpTopic = Topic;
   String tmpSub = Subscription;

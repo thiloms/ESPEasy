@@ -76,7 +76,7 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 	client.setTimeout(CONTROLLER_CLIENTTIMEOUT_DFLT);
 	String aHost = notificationsettings.Server;
 	addLog(LOG_LEVEL_DEBUG, String(F("EMAIL: Connecting to ")) + aHost + notificationsettings.Port);
-	if (client.connect(aHost.c_str(), notificationsettings.Port) != 1) {
+	if (!connectClient(client, aHost.c_str(), notificationsettings.Port)) {
 		addLog(LOG_LEVEL_ERROR, String(F("EMAIL: Error connecting to ")) + aHost + notificationsettings.Port);
 		myStatus = false;
 	}else {
@@ -160,7 +160,7 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 	return myStatus;
 }
 
-boolean NPlugin_001_Auth(WiFiClient& client, String user, String pass)
+boolean NPlugin_001_Auth(WiFiClient& client, const String& user, const String& pass)
 {
 	if (user.length() == 0 || pass.length() == 0) {
 		// No user/password given.
@@ -177,7 +177,7 @@ boolean NPlugin_001_Auth(WiFiClient& client, String user, String pass)
 	return true;
 }
 
-boolean NPlugin_001_MTA(WiFiClient& client, String aStr, const String &aWaitForPattern)
+boolean NPlugin_001_MTA(WiFiClient& client, const String& aStr, const String &aWaitForPattern)
 {
 	addLog(LOG_LEVEL_DEBUG, aStr);
 

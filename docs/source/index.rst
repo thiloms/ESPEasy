@@ -1,10 +1,10 @@
 .. ESPEasy documentation master file, created by
    sphinx-quickstart on Sat Oct 06 22:34:34 2018.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+   If the project doesn't compile, check this tools
+   http://rst.ninjs.org/
 
-Welcome to ESPEasy's documentation!
-===================================
+Welcome to ESP Easy's documentation!
+====================================
 
 .. toctree::
    :maxdepth: 2
@@ -12,9 +12,10 @@ Welcome to ESPEasy's documentation!
 
    ESPEasy/AboutUs.rst
    ESPEasy/FunctionBlocks.rst
-   Controller/Controller.rst
-   Plugin/Plugin.rst
+   Controller/_Controller.rst
+   Plugin/_Plugin.rst
    Rules/Rules.rst
+   Tools/Tools.rst
    WiFi/WiFi.rst
 
 .. raw:: latex
@@ -23,12 +24,23 @@ Welcome to ESPEasy's documentation!
 
 
 .. toctree::
+   :maxdepth: 2
    :caption: Appendix
 
    Participate/Documentation.rst
+   Reference/Safety.rst
    Reference/Command.rst
+   Reference/Events.rst
+   Reference/GPIO.rst
    Reference/SystemVariable.rst
+   Reference/ChangeLog.rst
 
+.. toctree::
+   :glob:
+   :hidden:
+
+   Controller/C*
+   Plugin/P*
 
 
 Indices and tables

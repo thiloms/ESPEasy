@@ -18,6 +18,7 @@ uint32_t syncInterval = 3600;  // time sync will be attempted after this many se
 double sysTime = 0.0; // Use high resolution double to get better sync between nodes when using NTP
 uint32_t prevMillis = 0;
 uint32_t nextSyncTime = 0;
+double externalTimeSource = -1.0; // Used to set time from a source other than NTP.
 struct tm tsRise, tsSet;
 struct tm sunRise;
 struct tm sunSet;
@@ -199,7 +200,6 @@ String getSunsetTimeString(char delimiter, int secOffset) {
   return getTimeString(getSunSet(secOffset), delimiter, false, false);
 }
 
-
 unsigned long now() {
   // calculate number of seconds passed since last call to now()
   bool timeSynced = false;
@@ -208,14 +208,28 @@ unsigned long now() {
 	prevMillis += msec_passed;
 	if (nextSyncTime <= sysTime) {
 		// nextSyncTime & sysTime are in seconds
-		double unixTime_d;
-		if (getNtpTime(unixTime_d)) {
-			prevMillis = millis();  // restart counting from now (thanks to Korman for this fix)
-			timeSynced = true;
-			sysTime = unixTime_d;
+		double unixTime_d = -1.0;
+    if (externalTimeSource > 0.0) {
+      unixTime_d = externalTimeSource;
+      externalTimeSource = -1.0;
+    }
+		if (unixTime_d > 0.0 || getNtpTime(unixTime_d)) {
+      prevMillis = millis();  // restart counting from now (thanks to Korman for this fix)
+      timeSynced = true;
+      if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+        double time_offset = sysTime - unixTime_d;
+        String log = F("Time adjusted by ");
+        log += String(time_offset * 1000.0);
+        log += F(" msec. Wander: ");
+        log += String((time_offset * 1000.0) / syncInterval);
+        log += F(" msec/second");
+        addLog(LOG_LEVEL_INFO, log)
+      }
+      sysTime = unixTime_d;
 
-			applyTimeZone(unixTime_d);
-			nextSyncTime = (uint32_t)unixTime_d + syncInterval;
+
+      applyTimeZone(unixTime_d);
+      nextSyncTime = (uint32_t)unixTime_d + syncInterval;
 		}
 	}
 	uint32_t localSystime = toLocal(sysTime);
@@ -294,6 +308,10 @@ void initTime()
 	now();
 }
 
+bool systemTimePresent() {
+  return nextSyncTime > 0 || Settings.UseNTP;
+}
+
 void checkTime()
 {
   now();
@@ -329,7 +347,7 @@ bool getNtpTime(double& unixTime_d)
 	IPAddress timeServerIP;
 	String log = F("NTP  : NTP host ");
 	if (Settings.NTPHost[0] != 0) {
-		WiFi.hostByName(Settings.NTPHost, timeServerIP);
+		resolveHostByName(Settings.NTPHost, timeServerIP);
 		log += Settings.NTPHost;
 		// When single set host fails, retry again in a minute
 		nextSyncTime = sysTime + 20;
@@ -337,7 +355,7 @@ bool getNtpTime(double& unixTime_d)
 		// Have to do a lookup eacht time, since the NTP pool always returns another IP
 		String ntpServerName = String(random(0, 3));
 		ntpServerName += F(".pool.ntp.org");
-		WiFi.hostByName(ntpServerName.c_str(), timeServerIP);
+		resolveHostByName(ntpServerName.c_str(), timeServerIP);
 		log += ntpServerName;
 		// When pool host fails, retry can be much sooner
 		nextSyncTime = sysTime + 5;
@@ -360,9 +378,10 @@ bool getNtpTime(double& unixTime_d)
 	const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
 	byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 
-	log += F(" queried");
+  log += F(" queried");
+#ifndef BUILD_NO_DEBUG
 	addLog(LOG_LEVEL_DEBUG_MORE, log);
-
+#endif
 	while (udp.parsePacket() > 0) ; // discard any previously received packets
 
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
@@ -440,7 +459,9 @@ bool getNtpTime(double& unixTime_d)
 		}
 		delay(10);
 	}
+#ifndef BUILD_NO_DEBUG
 	addLog(LOG_LEVEL_DEBUG_MORE, F("NTP  : No reply"));
+#endif
 	udp.stop();
 	return false;
 }
@@ -688,9 +709,7 @@ unsigned long string2TimeLong(const String &str)
 	// format 0000WWWWAAAABBBBCCCCDDDD
 	// WWWW=weekday, AAAA=hours tens digit, BBBB=hours, CCCC=minutes tens digit DDDD=minutes
 
-  #define TmpStr1Length 10
   char command[20];
-  char TmpStr1[TmpStr1Length];
   int w, x, y;
   unsigned long a;
   {
@@ -700,8 +719,8 @@ unsigned long string2TimeLong(const String &str)
     tmpString.toCharArray(command, 20);
   }
   unsigned long lngTime = 0;
-
-  if (GetArgv(command, TmpStr1, TmpStr1Length, 1))
+  String TmpStr1;
+  if (GetArgv(command, TmpStr1, 1))
   {
     String day = TmpStr1;
     String weekDays = F("allsunmontuewedthufrisatwrkwkd");
@@ -711,10 +730,10 @@ unsigned long string2TimeLong(const String &str)
     lngTime |= (unsigned long)y << 16;
   }
 
-  if (GetArgv(command, TmpStr1, TmpStr1Length, 2))
+  if (GetArgv(command, TmpStr1, 2))
   {
     y = 0;
-    for (x = strlen(TmpStr1) - 1; x >= 0; x--)
+    for (x = TmpStr1.length() - 1; x >= 0; x--)
     {
       w = TmpStr1[x];
       if ( (w >= '0' && w <= '9') || w == '*')

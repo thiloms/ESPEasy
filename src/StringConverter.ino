@@ -2,7 +2,7 @@
   Convert a char string to integer
   \*********************************************************************************************/
 //FIXME: change original code so it uses String and String.toInt()
-unsigned long str2int(char *string)
+unsigned long str2int(const char *string)
 {
   unsigned long temp = atof(string);
   return temp;
@@ -37,17 +37,14 @@ boolean str2ip(const char *string, byte* IP)
   return false;
 }
 
-// Call this by first declaring a char array of size 20, like:
-//  char strIP[20];
-//  formatIP(ip, strIP);
-void formatIP(const IPAddress& ip, char (&strIP)[20]) {
-  sprintf_P(strIP, PSTR("%u.%u.%u.%u"), ip[0], ip[1], ip[2], ip[3]);
-}
 
 String formatIP(const IPAddress& ip) {
-  char strIP[20];
-  formatIP(ip, strIP);
-  return String(strIP);
+#if defined(ARDUINO_ESP8266_RELEASE_2_3_0)
+  IPAddress tmp(ip);
+  return tmp.toString();
+#else
+  return ip.toString();
+#endif
 }
 
 void formatMAC(const uint8_t* mac, char (&strMAC)[20]) {
@@ -180,6 +177,7 @@ String doFormatUserVar(byte TaskIndex, byte rel_index, bool mustCheck, bool& isv
   float f(UserVar[BaseVarIndex + rel_index]);
   if (mustCheck && !isValidFloat(f)) {
     isvalid = false;
+#ifndef BUILD_NO_DEBUG
     if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
       String log = F("Invalid float value for TaskIndex: ");
       log += TaskIndex;
@@ -187,6 +185,7 @@ String doFormatUserVar(byte TaskIndex, byte rel_index, bool mustCheck, bool& isv
       log += rel_index;
       addLog(LOG_LEVEL_DEBUG, log);
     }
+#endif
     f = 0;
   }
   return toString(f, ExtraTaskSettings.TaskDeviceValueDecimals[rel_index]);
@@ -615,6 +614,7 @@ String getReplacementString(const String& format, String& s) {
   int startpos = s.indexOf(format);
   int endpos = s.indexOf('%', startpos + 1);
   String R = s.substring(startpos, endpos + 1);
+#ifndef BUILD_NO_DEBUG
   if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
     String log = F("ReplacementString SunTime: ");
     log += R;
@@ -622,6 +622,7 @@ String getReplacementString(const String& format, String& s) {
     log += getSecOffset(R);
     addLog(LOG_LEVEL_DEBUG, log);
   }
+#endif
   return R;
 }
 

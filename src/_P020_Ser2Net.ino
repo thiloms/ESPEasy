@@ -181,6 +181,7 @@ boolean Plugin_020(byte function, struct EventStruct *event, String& string)
               connectionState = 0;
               // workaround see: https://github.com/esp8266/Arduino/issues/4497#issuecomment-373023864
               ser2netClient = WiFiClient();
+              ser2netClient.setTimeout(CONTROLLER_CLIENTTIMEOUT_DFLT);
               addLog(LOG_LEVEL_ERROR, F("Ser2N: Client disconnected!"));
             }
 
@@ -246,7 +247,7 @@ boolean Plugin_020(byte function, struct EventStruct *event, String& string)
         if (Settings.UseRules)
         {
           String message = (char*)serial_buf;
-          int NewLinePos = message.indexOf(F("\r\n"));
+          int NewLinePos = message.indexOf("\r\n");
           if (NewLinePos > 0)
             message = message.substring(0, NewLinePos);
           String eventString = "";
@@ -296,7 +297,7 @@ boolean Plugin_020(byte function, struct EventStruct *event, String& string)
         {
           success = true;
           String tmpString = string.substring(11);
-          Serial.println(tmpString);
+          Serial.println(tmpString); // FIXME TD-er: Should this also use the serial write buffer?
         }
         break;
       }
