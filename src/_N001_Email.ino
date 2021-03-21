@@ -1,3 +1,5 @@
+#include "ESPEasy_common.h"
+
 #ifdef USES_N001
 //#######################################################################################################
 //########################### Notification Plugin 001: Email ############################################
@@ -9,62 +11,72 @@
 
 #define NPLUGIN_001_TIMEOUT 5000
 
+#include "src/DataStructs/NotificationSettingsStruct.h"
+#include "src/Globals/NPlugins.h"
+
 // The message body is included in event->String1
 
-boolean NPlugin_001(byte function, struct EventStruct *event, String& string)
+boolean NPlugin_001(NPlugin::Function function, struct EventStruct *event, String& string)
 {
 	boolean success = false;
 
 	switch (function) {
-	case NPLUGIN_PROTOCOL_ADD:
-	{
-		Notification[++notificationCount].Number = NPLUGIN_ID_001;
-		Notification[notificationCount].usesMessaging = true;
-		Notification[notificationCount].usesGPIO = 0;
-		break;
-	}
+		case NPlugin::Function::NPLUGIN_PROTOCOL_ADD:
+		{
+			Notification[++notificationCount].Number = NPLUGIN_ID_001;
+			Notification[notificationCount].usesMessaging = true;
+			Notification[notificationCount].usesGPIO = 0;
+			break;
+		}
 
-	case NPLUGIN_GET_DEVICENAME:
-	{
-		string = F(NPLUGIN_NAME_001);
-		break;
-	}
+		case NPlugin::Function::NPLUGIN_GET_DEVICENAME:
+		{
+			string = F(NPLUGIN_NAME_001);
+			break;
+		}
 
-	// Edwin: NPLUGIN_WRITE seems to be not implemented/not used yet? Disabled because its confusing now.
-	// case NPLUGIN_WRITE:
-	//   {
-	//     String log = "";
-	//     String command = parseString(string, 1);
-	//
-	//     if (command == F("email"))
-	//     {
-	//       MakeNotificationSettings(NotificationSettings);
-	//       LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
-	//       NPlugin_001_send(NotificationSettings.Domain, NotificationSettings.Receiver, NotificationSettings.Sender, NotificationSettings.Subject, NotificationSettings.Body, NotificationSettings.Server, NotificationSettings.Port);
-	//       success = true;
-	//     }
-	//     break;
-	//   }
+		// Edwin: NPlugin::Function::NPLUGIN_WRITE seems to be not implemented/not used yet? Disabled because its confusing now.
+		// case NPlugin::Function::NPLUGIN_WRITE:
+		//   {
+		//     String log;
+		//     String command = parseString(string, 1);
+		//
+		//     if (command == F("email"))
+		//     {
+		//       MakeNotificationSettings(NotificationSettings);
+		//       LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
+		//       NPlugin_001_send(NotificationSettings.Domain, NotificationSettings.Receiver, NotificationSettings.Sender, NotificationSettings.Subject, NotificationSettings.Body, NotificationSettings.Server, NotificationSettings.Port);
+		//       success = true;
+		//     }
+		//     break;
+		//   }
 
-	case NPLUGIN_NOTIFY:
-	{
-		MakeNotificationSettings(NotificationSettings);
-		LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
-		String subject = NotificationSettings.Subject;
-		String body = "";
-		if (event->String1.length() > 0)
-			body = event->String1;
-		else
-			body = NotificationSettings.Body;
-		subject = parseTemplate(subject, subject.length());
-		body = parseTemplate(body, body.length());
-		NPlugin_001_send(NotificationSettings, subject, body);
-		success = true;
+		case NPlugin::Function::NPLUGIN_NOTIFY:
+		{
+			MakeNotificationSettings(NotificationSettings);
+			LoadNotificationSettings(event->NotificationIndex, (byte*)&NotificationSettings, sizeof(NotificationSettingsStruct));
+			NotificationSettings.validate();
+			String subject = NotificationSettings.Subject;
+			String body;
+			if (event->String1.length() > 0)
+				body = event->String1;
+			else
+				body = NotificationSettings.Body;
+			subject = parseTemplate(subject);
+			body = parseTemplate(body);
+			NPlugin_001_send(NotificationSettings, subject, body);
+			success = true;
+			break;
+		}
+
+		default:
 		break;
-	}
 	}
 	return success;
 }
+
+
+#ifdef USES_NOTIFIER
 
 boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings, const String& aSub, String& aMesg)
 {
@@ -94,26 +106,26 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 		int pos_less = email_address.indexOf('<');
 		if (pos_less == -1) {
 			// No email address markup
-			mailheader.replace(String(F("$nodename")), Settings.Name);
+			mailheader.replace(String(F("$nodename")), Settings.getHostname());
 			mailheader.replace(String(F("$emailfrom")), notificationsettings.Sender);
 		} else {
 			String senderName = email_address.substring(0, pos_less);
-			senderName.replace("\"", ""); // Remove quotes
+			senderName.replace(F("\""), F("")); // Remove quotes
 			String address = email_address.substring(pos_less + 1);
-			address.replace("<", "");
-			address.replace(">", "");
+			address.replace(F("<"), F(""));
+			address.replace(F(">"), F(""));
 			address.trim();
 			senderName.trim();
 			mailheader.replace(String(F("$nodename")), senderName);
 			mailheader.replace(String(F("$emailfrom")), address);
 		}
 
-		mailheader.replace(String(F("$nodename")), Settings.Name);
+		mailheader.replace(String(F("$nodename")), Settings.getHostname());
 		mailheader.replace(String(F("$emailfrom")), notificationsettings.Sender);
 		mailheader.replace(String(F("$ato")), notificationsettings.Receiver);
 		mailheader.replace(String(F("$subject")), aSub);
 		mailheader.replace(String(F("$espeasyversion")), String(BUILD));
-		aMesg.replace("\r", F("<br/>")); // re-write line breaks for Content-type: text/html
+		aMesg.replace(F("\r"), F("<br/>")); // re-write line breaks for Content-type: text/html
 
 		// Wait for Client to Start Sending
 		// The MTA Exchange
@@ -125,7 +137,7 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 
 			bool nextAddressAvailable = true;
 			int i = 0;
-			String emailTo = "";
+			String emailTo;
 			if (!getNextMailAddress(notificationsettings.Receiver, emailTo, i)) {
 				addLog(LOG_LEVEL_ERROR, F("Email: No recipient given"));
 				break;
@@ -159,6 +171,8 @@ boolean NPlugin_001_send(const NotificationSettingsStruct& notificationsettings,
 	}
 	return myStatus;
 }
+
+#endif
 
 boolean NPlugin_001_Auth(WiFiClient& client, const String& user, const String& pass)
 {

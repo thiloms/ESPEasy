@@ -1,11 +1,22 @@
-// Copyright 2017 David Conran
+// Copyright 2017-2020 David Conran
 
+#include <string>
 #include "ir_Samsung.h"
+#include "IRac.h"
 #include "IRrecv.h"
 #include "IRrecv_test.h"
 #include "IRsend.h"
 #include "IRsend_test.h"
 #include "gtest/gtest.h"
+
+
+// General housekeeping
+TEST(TestSamsung, Housekeeping) {
+  ASSERT_EQ("SAMSUNG", typeToString(decode_type_t::SAMSUNG));
+  ASSERT_EQ(decode_type_t::SAMSUNG, strToDecodeType("SAMSUNG"));
+  ASSERT_FALSE(hasACState(decode_type_t::SAMSUNG));
+  ASSERT_EQ(kSamsungBits, IRsend::defaultBits(decode_type_t::SAMSUNG));
+}
 
 // Tests for sendSAMSUNG().
 
@@ -17,6 +28,7 @@ TEST(TestSendSamsung, SendDataOnly) {
   irsend.reset();
   irsend.sendSAMSUNG(0xE0E09966);  // Samsung TV Power On.
   EXPECT_EQ(
+      "f38000d33"
       "m4480s4480"
       "m560s1680m560s1680m560s1680m560s560m560s560m560s560m560s560"
       "m560s560m560s1680m560s1680m560s1680m560s560m560s560m560s560"
@@ -36,6 +48,7 @@ TEST(TestSendSamsung, SendWithRepeats) {
   irsend.reset();
   irsend.sendSAMSUNG(0xE0E09966, kSamsungBits, 1);  // 1 repeat.
   EXPECT_EQ(
+      "f38000d33"
       "m4480s4480"
       "m560s1680m560s1680m560s1680m560s560m560s560m560s560m560s560"
       "m560s560m560s1680m560s1680m560s1680m560s560m560s560m560s560"
@@ -51,6 +64,7 @@ TEST(TestSendSamsung, SendWithRepeats) {
       irsend.outputStr());
   irsend.sendSAMSUNG(0xE0E09966, kSamsungBits, 2);  // 2 repeats.
   EXPECT_EQ(
+      "f38000d33"
       "m4480s4480"
       "m560s1680m560s1680m560s1680m560s560m560s560m560s560m560s560"
       "m560s560m560s1680m560s1680m560s1680m560s560m560s560m560s560"
@@ -96,7 +110,8 @@ TEST(TestDecodeSamsung, NormalDecodeWithStrict) {
   irsend.reset();
   irsend.sendSAMSUNG(0xE0E09966);
   irsend.makeDecodeResult();
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   true));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0xE0E09966, irsend.capture.value);
@@ -107,7 +122,8 @@ TEST(TestDecodeSamsung, NormalDecodeWithStrict) {
   irsend.reset();
   irsend.sendSAMSUNG(irsend.encodeSAMSUNG(0x07, 0x99));
   irsend.makeDecodeResult();
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   true));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0xE0E09966, irsend.capture.value);
@@ -118,7 +134,8 @@ TEST(TestDecodeSamsung, NormalDecodeWithStrict) {
   irsend.reset();
   irsend.sendSAMSUNG(irsend.encodeSAMSUNG(0x1, 0x1));
   irsend.makeDecodeResult();
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   true));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0x8080807F, irsend.capture.value);
@@ -136,7 +153,8 @@ TEST(TestDecodeSamsung, NormalDecodeWithRepeatAndStrict) {
   irsend.reset();
   irsend.sendSAMSUNG(0xE0E09966, kSamsungBits, 2);
   irsend.makeDecodeResult();
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   true));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0xE0E09966, irsend.capture.value);
@@ -154,9 +172,11 @@ TEST(TestDecodeSamsung, DecodeWithNonStrictValues) {
   irsend.sendSAMSUNG(0x0);  // Illegal value Samsung 32-bit message.
   irsend.makeDecodeResult();
   // Should fail with strict on.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    true));
   // Should pass if strict off.
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, false));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   false));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0x0, irsend.capture.value);
@@ -167,9 +187,11 @@ TEST(TestDecodeSamsung, DecodeWithNonStrictValues) {
   irsend.sendSAMSUNG(0x12345678);  // Illegal value Samsung 32-bit message.
   irsend.makeDecodeResult();
   // Should fail with strict on.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    true));
   // Should pass if strict off.
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, false));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                   false));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungBits, irsend.capture.bits);
   EXPECT_EQ(0x12345678, irsend.capture.value);
@@ -181,12 +203,14 @@ TEST(TestDecodeSamsung, DecodeWithNonStrictValues) {
   irsend.sendSAMSUNG(irsend.encodeSAMSUNG(0, 0), 36);
   irsend.makeDecodeResult();
   // Should fail with strict on.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    true));
   // Shouldn't pass if strict off and wrong expected bit size.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, false));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    false));
   // Re-decode with correct bit size.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, 36, true));
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, 36, false));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, 36, true));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, 36, false));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(36, irsend.capture.bits);
   EXPECT_EQ(0xFF, irsend.capture.value);  // We told it to expect 8 bits less.
@@ -203,7 +227,7 @@ TEST(TestDecodeSamsung, DecodeWithNonStrictValues) {
   ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, false));
 
   // Should pass if strict off if we ask for correct nr. of bits sent.
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, 16, false));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, 16, false));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(16, irsend.capture.bits);
   EXPECT_EQ(0xFF, irsend.capture.value);  // We told it to expect 4 bits less.
@@ -211,7 +235,7 @@ TEST(TestDecodeSamsung, DecodeWithNonStrictValues) {
   EXPECT_EQ(0x00, irsend.capture.command);
 
   // Should fail as we are expecting less bits than there are.
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, 12, false));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, 12, false));
 }
 
 // Decode (non-standard) 64-bit messages.
@@ -225,9 +249,10 @@ TEST(TestDecodeSamsung, Decode64BitMessages) {
   // Illegal value & size Samsung 64-bit message.
   irsend.sendSAMSUNG(0xFFFFFFFFFFFFFFFF, 64);
   irsend.makeDecodeResult();
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, true));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    true));
   // Should work with a 'normal' match (not strict)
-  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, 64, false));
+  ASSERT_TRUE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, 64, false));
   EXPECT_EQ(SAMSUNG, irsend.capture.decode_type);
   EXPECT_EQ(64, irsend.capture.bits);
   EXPECT_EQ(0xFFFFFFFFFFFFFFFF, irsend.capture.value);
@@ -278,7 +303,18 @@ TEST(TestDecodeSamsung, FailToDecodeNonSamsungExample) {
   irsend.makeDecodeResult();
 
   ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture));
-  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kSamsungBits, false));
+  ASSERT_FALSE(irrecv.decodeSAMSUNG(&irsend.capture, kStartOffset, kSamsungBits,
+                                    false));
+}
+
+// General housekeeping
+TEST(TestSamsungAC, Housekeeping) {
+  ASSERT_EQ("SAMSUNG_AC", typeToString(decode_type_t::SAMSUNG_AC));
+  ASSERT_EQ(decode_type_t::SAMSUNG_AC, strToDecodeType("SAMSUNG_AC"));
+  ASSERT_TRUE(hasACState(decode_type_t::SAMSUNG_AC));
+  ASSERT_TRUE(IRac::isProtocolSupported(decode_type_t::SAMSUNG_AC));
+  ASSERT_EQ(kSamsungAcBits, IRsend::defaultBits(decode_type_t::SAMSUNG_AC));
+  ASSERT_EQ(kNoRepeat, IRsend::minRepeats(decode_type_t::SAMSUNG_AC));
 }
 
 // Tests for sendSamsungAC().
@@ -287,11 +323,12 @@ TEST(TestDecodeSamsung, FailToDecodeNonSamsungExample) {
 TEST(TestSendSamsungAC, SendDataOnly) {
   IRsendTest irsend(0);
   irsend.begin();
-  uint8_t data[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                         0x00, 0xF0, 0x01, 0x02, 0xAF,
-                                         0x71, 0x00, 0x15, 0xF0};
+  uint8_t data[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0x02, 0xAF, 0x71, 0x00, 0x15, 0xF0};
   irsend.sendSamsungAC(data);
   EXPECT_EQ(
+      "f38000d50"
       "m690s17844"
       "m3086s8864"
       "m586s436m586s1432m586s436m586s436m586s436m586s436m586s436m586s436"
@@ -320,10 +357,12 @@ TEST(TestSendSamsungAC, SendExtendedData) {
   irsend.begin();
   // "Off" message.
   uint8_t data[kSamsungAcExtendedStateLength] = {
-      0x02, 0xB2, 0x0F, 0x00, 0x00, 0x00, 0xC0, 0x01, 0xD2, 0x0F, 0x00,
-      0x00, 0x00, 0x00, 0x01, 0x02, 0xFF, 0x71, 0x80, 0x11, 0xC0};
+      0x02, 0xB2, 0x0F, 0x00, 0x00, 0x00, 0xC0,
+      0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0x02, 0xFF, 0x71, 0x80, 0x11, 0xC0};
   irsend.sendSamsungAC(data, kSamsungAcExtendedStateLength);
   EXPECT_EQ(
+      "f38000d50"
       "m690s17844"
       "m3086s8864"
       "m586s436m586s1432m586s436m586s436m586s436m586s436m586s436m586s436"
@@ -358,15 +397,16 @@ TEST(TestSendSamsungAC, SendExtendedData) {
 // Tests for IRSamsungAc class.
 
 TEST(TestIRSamsungAcClass, SetAndGetRaw) {
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0xE2, 0xFE,
-                                                  0x71, 0x40, 0x11, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xE2, 0xFE, 0x71, 0x40, 0x11, 0xF0};
   IRSamsungAc samsung(0);
   samsung.setRaw(expectedState);
   EXPECT_STATE_EQ(expectedState, samsung.getRaw(), kSamsungAcBits);
   uint8_t extendedState[kSamsungAcExtendedStateLength] = {
-      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0, 0x01, 0xD2, 0x0F, 0x00,
-      0x00, 0x00, 0x00, 0x01, 0xE2, 0xFE, 0x71, 0x40, 0x11, 0xF0};
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0xE2, 0xFE, 0x71, 0x40, 0x11, 0xF0};
   samsung.setRaw(extendedState, kSamsungAcExtendedStateLength);
   // We should NOT get the extended state back.
   EXPECT_STATE_EQ(expectedState, samsung.getRaw(), kSamsungAcBits);
@@ -394,7 +434,7 @@ TEST(TestIRSamsungAcClass, SetAndGetSwing) {
   EXPECT_TRUE(samsung.getSwing());
 
   // Real examples from:
-  // https://github.com/markszabo/IRremoteESP8266/issues/505#issuecomment-424036602
+  // https://github.com/crankyoldgit/IRremoteESP8266/issues/505#issuecomment-424036602
   // TODO(Hollako): Explain why state[9] lowest bit changes between on and off.
   const uint8_t expected_off[kSamsungAcStateLength] = {
       0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
@@ -428,6 +468,26 @@ TEST(TestIRSamsungAcClass, SetAndGetBeep) {
   EXPECT_FALSE(samsung.getBeep());
   samsung.setBeep(true);
   EXPECT_TRUE(samsung.getBeep());
+}
+
+TEST(TestIRSamsungAcClass, SetAndGetDisplay) {
+  IRSamsungAc ac(0);
+  ac.setDisplay(true);
+  EXPECT_TRUE(ac.getDisplay());
+  ac.setDisplay(false);
+  EXPECT_FALSE(ac.getDisplay());
+  ac.setDisplay(true);
+  EXPECT_TRUE(ac.getDisplay());
+}
+
+TEST(TestIRSamsungAcClass, SetAndGetIon) {
+  IRSamsungAc ac(0);
+  ac.setIon(true);
+  EXPECT_TRUE(ac.getIon());
+  ac.setIon(false);
+  EXPECT_FALSE(ac.getIon());
+  ac.setIon(true);
+  EXPECT_TRUE(ac.getIon());
 }
 
 TEST(TestIRSamsungAcClass, SetAndGetTemp) {
@@ -479,15 +539,98 @@ TEST(TestIRSamsungAcClass, SetAndGetFan) {
 }
 
 TEST(TestIRSamsungAcClass, SetAndGetQuiet) {
-  IRSamsungAc samsung(0);
-  samsung.setQuiet(false);
-  EXPECT_FALSE(samsung.getQuiet());
-  samsung.setFan(kSamsungAcFanHigh);
-  samsung.setQuiet(true);
-  EXPECT_TRUE(samsung.getQuiet());
-  EXPECT_EQ(kSamsungAcFanAuto, samsung.getFan());
-  samsung.setQuiet(false);
-  EXPECT_FALSE(samsung.getQuiet());
+  IRSamsungAc ac(0);
+  ac.setQuiet(false);
+  EXPECT_FALSE(ac.getQuiet());
+  ac.setFan(kSamsungAcFanHigh);
+  ac.setQuiet(true);
+  EXPECT_TRUE(ac.getQuiet());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());
+  ac.setQuiet(false);
+  EXPECT_FALSE(ac.getQuiet());
+
+  // Actual quiet on & off states from:
+  // https://github.com/crankyoldgit/IRremoteESP8266/issues/734#issuecomment-500071419
+  uint8_t on[14] = {
+      0x02, 0x82, 0x0F, 0x00, 0x00, 0x20, 0xF0,
+      0x01, 0xF2, 0xFE, 0x71, 0x00, 0x11, 0xF0};
+  ac.setRaw(on, 14);
+  EXPECT_TRUE(ac.getQuiet());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());
+  uint8_t off[14] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xF2, 0xFE, 0x71, 0x00, 0x11, 0xF0};
+  ac.setRaw(off, 14);
+  EXPECT_FALSE(ac.getQuiet());
+}
+
+
+TEST(TestIRSamsungAcClass, SetAndGetPowerful) {
+  IRSamsungAc ac(0);
+  ac.setFan(kSamsungAcFanMed);
+  ac.setPowerful(false);
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanMed, ac.getFan());
+  ac.setPowerful(true);
+  EXPECT_TRUE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanTurbo, ac.getFan());
+  ac.setPowerful(false);
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());
+
+  // Breeze and Powerful/Turbo are mutually exclusive.
+  ac.setPowerful(true);
+  EXPECT_TRUE(ac.getPowerful());
+  ac.setBreeze(true);
+  EXPECT_TRUE(ac.getBreeze());
+  EXPECT_FALSE(ac.getPowerful());
+
+  // Actual powerful on & off states from:
+  // https://github.com/crankyoldgit/IRremoteESP8266/issues/734#issuecomment-500120270
+  uint8_t on[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xA2, 0xFE, 0x77, 0x00, 0x1F, 0xF0};
+  ac.setRaw(on, kSamsungAcStateLength);
+  EXPECT_TRUE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanTurbo, ac.getFan());
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 7 (Turbo), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: On, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+
+  uint8_t off[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xF2, 0xFE, 0x71, 0x00, 0x11, 0xF0};
+  ac.setRaw(off, kSamsungAcStateLength);
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_NE(kSamsungAcFanTurbo, ac.getFan());
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+}
+
+TEST(TestIRSamsungAcClass, QuietAndPowerfulAreMutuallyExclusive) {
+  IRSamsungAc ac(0);
+  ac.setQuiet(false);
+  ac.setPowerful(false);
+  EXPECT_FALSE(ac.getQuiet());
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_NE(kSamsungAcFanTurbo, ac.getFan());
+  ac.setQuiet(true);
+  EXPECT_TRUE(ac.getQuiet());
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());
+  ac.setPowerful(true);
+  EXPECT_FALSE(ac.getQuiet());
+  EXPECT_TRUE(ac.getPowerful());
+  EXPECT_EQ(kSamsungAcFanTurbo, ac.getFan());
+  ac.setQuiet(true);
+  EXPECT_TRUE(ac.getQuiet());
+  EXPECT_FALSE(ac.getPowerful());
+  EXPECT_NE(kSamsungAcFanTurbo, ac.getFan());
 }
 
 TEST(TestIRSamsungAcClass, ChecksumCalculation) {
@@ -496,14 +639,20 @@ TEST(TestIRSamsungAcClass, ChecksumCalculation) {
   const uint8_t originalstate[kSamsungAcStateLength] = {
       0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
       0x01, 0x02, 0xAF, 0x71, 0x00, 0x15, 0xF0};
-  uint8_t examplestate[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                 0x00, 0xF0, 0x01, 0x02, 0xAF,
-                                                 0x71, 0x00, 0x15, 0xF0};
+  uint8_t examplestate[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0x02, 0xAF, 0x71, 0x00, 0x15, 0xF0};
+
+  const uint8_t extendedstate[kSamsungAcExtendedStateLength] = {
+      0x02, 0xA9, 0x0F, 0x00, 0x00, 0x00, 0xC0,
+      0x01, 0xC9, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0xF9, 0xCE, 0x71, 0xE0, 0x41, 0xC0};
+
 
   EXPECT_TRUE(IRSamsungAc::validChecksum(examplestate));
   EXPECT_EQ(0, IRSamsungAc::calcChecksum(examplestate));
 
-  examplestate[8] = 0x12;  // Set an incoorect checksum.
+  examplestate[8] = 0x12;  // Set an incorrect checksum.
   EXPECT_FALSE(IRSamsungAc::validChecksum(examplestate));
   EXPECT_EQ(0, IRSamsungAc::calcChecksum(examplestate));
   samsung.setRaw(examplestate);
@@ -516,13 +665,17 @@ TEST(TestIRSamsungAcClass, ChecksumCalculation) {
   examplestate[11] = 0x01;
   EXPECT_FALSE(IRSamsungAc::validChecksum(examplestate));
   EXPECT_EQ(0xF, IRSamsungAc::calcChecksum(examplestate));
+
+  // Check an extended state is valid.
+  EXPECT_TRUE(IRSamsungAc::validChecksum(extendedstate, 21));
 }
 
 TEST(TestIRSamsungAcClass, HumanReadable) {
   IRSamsungAc samsung(0);
   EXPECT_EQ(
-      "Power: On, Mode: 1 (COOL), Temp: 16C, Fan: 2 (LOW), Swing: On, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 2 (Low), Swing: On, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
   samsung.setTemp(kSamsungAcMaxTemp);
   samsung.setMode(kSamsungAcHeat);
@@ -532,13 +685,29 @@ TEST(TestIRSamsungAcClass, HumanReadable) {
   samsung.setBeep(true);
   samsung.setClean(true);
   EXPECT_EQ(
-      "Power: Off, Mode: 4 (HEAT), Temp: 30C, Fan: 5 (HIGH), Swing: Off, "
-      "Beep: On, Clean: On, Quiet: Off",
+      "Power: Off, Mode: 4 (Heat), Temp: 30C, Fan: 5 (High), Swing: Off, "
+      "Beep: On, Clean: On, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
   samsung.setQuiet(true);
   EXPECT_EQ(
-      "Power: Off, Mode: 4 (HEAT), Temp: 30C, Fan: 0 (AUTO), Swing: Off, "
-      "Beep: On, Clean: On, Quiet: On",
+      "Power: Off, Mode: 4 (Heat), Temp: 30C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: On, Clean: On, Quiet: On, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      samsung.toString());
+  samsung.setQuiet(false);
+  samsung.setPowerful(true);
+  EXPECT_EQ(
+      "Power: Off, Mode: 4 (Heat), Temp: 30C, Fan: 7 (Turbo), Swing: Off, "
+      "Beep: On, Clean: On, Quiet: Off, Powerful: On, Breeze: Off, "
+      "Light: On, Ion: Off",
+      samsung.toString());
+  samsung.setIon(true);
+  samsung.setDisplay(false);
+  EXPECT_EQ(
+      "Power: Off, Mode: 4 (Heat), Temp: 30C, Fan: 7 (Turbo), Swing: Off, "
+      "Beep: On, Clean: On, Quiet: Off, Powerful: On, Breeze: Off, "
+      "Light: Off, Ion: On",
       samsung.toString());
 }
 
@@ -585,9 +754,9 @@ TEST(TestDecodeSamsungAC, SyntheticDecode) {
   IRrecv irrecv(0);
   irsend.begin();
   irsend.reset();
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0x02, 0xAF,
-                                                  0x71, 0x00, 0x15, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0x02, 0xAF, 0x71, 0x00, 0x15, 0xF0};
   // Synthesised Normal Samsung A/C message.
   irsend.sendSamsungAC(expectedState);
   irsend.makeDecodeResult();
@@ -626,9 +795,9 @@ TEST(TestDecodeSamsungAC, DecodeRealExample) {
       584, 1406,  586,  410,  584, 1384, 606, 410,  586, 410,  584,  408,
       586, 408,   586,  408,  586, 408,  588, 410,  584, 1408, 590,  1400,
       592, 1398,  602,  1388, 612};
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0x02, 0xAF,
-                                                  0x71, 0x00, 0x15, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0x02, 0xAF, 0x71, 0x00, 0x15, 0xF0};
 
   irsend.sendRaw(rawData, 233, 38000);
   irsend.makeDecodeResult();
@@ -641,8 +810,9 @@ TEST(TestDecodeSamsungAC, DecodeRealExample) {
   IRSamsungAc samsung(0);
   samsung.setRaw(irsend.capture.state);
   EXPECT_EQ(
-      "Power: On, Mode: 1 (COOL), Temp: 16C, Fan: 2 (LOW), Swing: On, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 2 (Low), Swing: On, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
 }
 
@@ -675,9 +845,9 @@ TEST(TestDecodeSamsungAC, DecodeRealExample2) {
       560, 436,   486,  510,  566, 1400, 598, 420,  576, 418,  582,  414,
       586, 410,   584,  410,  584, 410,  586, 410,  584, 1382, 608,  1384,
       606, 1384,  606,  1408, 600};
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0xE2, 0xFE,
-                                                  0x71, 0x80, 0x11, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
 
   irsend.sendRaw(rawData, 233, 38000);
   irsend.makeDecodeResult();
@@ -690,13 +860,14 @@ TEST(TestDecodeSamsungAC, DecodeRealExample2) {
   IRSamsungAc samsung(0);
   samsung.setRaw(irsend.capture.state);
   EXPECT_EQ(
-      "Power: On, Mode: 1 (COOL), Temp: 24C, Fan: 0 (AUTO), Swing: Off, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: On, Mode: 1 (Cool), Temp: 24C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
 }
 
 // Decode a real Samsung A/C example from:
-// https://github.com/markszabo/IRremoteESP8266/issues/505#issuecomment-424036602
+// https://github.com/crankyoldgit/IRremoteESP8266/issues/505#issuecomment-424036602
 TEST(TestDecodeSamsungAC, DecodePowerOnSample) {
   IRsendTest irsend(0);
   IRrecv irrecv(0);
@@ -735,8 +906,9 @@ TEST(TestDecodeSamsungAC, DecodePowerOnSample) {
       518, 480,   520,  480,  520, 1454, 568,  1430, 566, 1432, 566,  1454,
       594};
   uint8_t expectedState[kSamsungAcExtendedStateLength] = {
-      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0, 0x01, 0xD2, 0x0F, 0x00,
-      0x00, 0x00, 0x00, 0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
 
   irsend.sendRaw(rawData, 349, 38000);
   irsend.makeDecodeResult();
@@ -748,13 +920,14 @@ TEST(TestDecodeSamsungAC, DecodePowerOnSample) {
   IRSamsungAc samsung(0);
   samsung.setRaw(irsend.capture.state, kSamsungAcExtendedStateLength);
   EXPECT_EQ(
-      "Power: On, Mode: 1 (COOL), Temp: 24C, Fan: 0 (AUTO), Swing: Off, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: On, Mode: 1 (Cool), Temp: 24C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
 }
 
 // Decode a real Samsung A/C example from:
-// https://github.com/markszabo/IRremoteESP8266/issues/505#issuecomment-424036602
+// https://github.com/crankyoldgit/IRremoteESP8266/issues/505#issuecomment-424036602
 TEST(TestDecodeSamsungAC, DecodePowerOffSample) {
   IRsendTest irsend(0);
   IRrecv irrecv(0);
@@ -794,8 +967,9 @@ TEST(TestDecodeSamsungAC, DecodePowerOffSample) {
       608};
 
   uint8_t expectedState[kSamsungAcExtendedStateLength] = {
-      0x02, 0xB2, 0x0F, 0x00, 0x00, 0x00, 0xC0, 0x01, 0xD2, 0x0F, 0x00,
-      0x00, 0x00, 0x00, 0x01, 0x02, 0xFF, 0x71, 0x80, 0x11, 0xC0};
+      0x02, 0xB2, 0x0F, 0x00, 0x00, 0x00, 0xC0,
+      0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0x02, 0xFF, 0x71, 0x80, 0x11, 0xC0};
 
   irsend.sendRaw(rawData, 349, 38000);
   irsend.makeDecodeResult();
@@ -807,8 +981,9 @@ TEST(TestDecodeSamsungAC, DecodePowerOffSample) {
   IRSamsungAc samsung(0);
   samsung.setRaw(irsend.capture.state, kSamsungAcExtendedStateLength);
   EXPECT_EQ(
-      "Power: Off, Mode: 1 (COOL), Temp: 24C, Fan: 0 (AUTO), Swing: Off, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: Off, Mode: 1 (Cool), Temp: 24C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
 }
 
@@ -840,9 +1015,9 @@ TEST(TestDecodeSamsungAC, DecodeHeatSample) {
       512, 482,   512,  482,  510, 484,  510, 484,  510, 1478, 512,  1504,
       488, 1480,  560,  1454, 514};
 
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0x02, 0xAF,
-                                                  0x71, 0x10, 0x41, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0x02, 0xAF, 0x71, 0x10, 0x41, 0xF0};
 
   irsend.sendRaw(rawData, 233, 38000);
   irsend.makeDecodeResult();
@@ -854,8 +1029,9 @@ TEST(TestDecodeSamsungAC, DecodeHeatSample) {
   IRSamsungAc samsung(0);
   samsung.setRaw(irsend.capture.state);
   EXPECT_EQ(
-      "Power: On, Mode: 4 (HEAT), Temp: 17C, Fan: 0 (AUTO), Swing: On, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: On, Mode: 4 (Heat), Temp: 17C, Fan: 0 (Auto), Swing: On, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
 }
 
@@ -887,9 +1063,9 @@ TEST(TestDecodeSamsungAC, DecodeCoolSample) {
       584, 412,   584,  408,  586, 410,  586, 408,  586, 1404, 586,  1408,
       582, 1410,  562,  1426, 610};
 
-  uint8_t expectedState[kSamsungAcStateLength] = {0x02, 0x92, 0x0F, 0x00, 0x00,
-                                                  0x00, 0xF0, 0x01, 0xE2, 0xFE,
-                                                  0x71, 0x40, 0x11, 0xF0};
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xE2, 0xFE, 0x71, 0x40, 0x11, 0xF0};
 
   irsend.sendRaw(rawData, 233, 38000);
   irsend.makeDecodeResult();
@@ -897,11 +1073,568 @@ TEST(TestDecodeSamsungAC, DecodeCoolSample) {
   ASSERT_EQ(SAMSUNG_AC, irsend.capture.decode_type);
   EXPECT_EQ(kSamsungAcBits, irsend.capture.bits);
   EXPECT_STATE_EQ(expectedState, irsend.capture.state, irsend.capture.bits);
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 20C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      IRAcUtils::resultAcToString(&irsend.capture));
+  stdAc::state_t r, p;
+  ASSERT_TRUE(IRAcUtils::decodeToState(&irsend.capture, &r, &p));
+}
+
+TEST(TestDecodeSamsungAC, Issue604DecodeExtended) {
+  IRsendTest irsend(0);
+  IRrecv irrecv(0);
+  irsend.begin();
+
+  irsend.reset();
+  uint16_t sendOff[349] = {
+      642, 17730, 3056, 8916, 542, 448,  552,  1440, 552, 444,  552,  444,
+      552, 444,   552,  440,  556, 440,  556,  440,  556, 1436, 552,  444,
+      552, 444,   552,  1440, 548, 470,  526,  1464, 470, 526,  516,  1470,
+      552, 1440,  552,  1440, 550, 1436, 556,  1434, 552, 444,  552,  444,
+      552, 444,   552,  442,  552, 444,  546,  470,  526, 470,  526,  470,
+      470, 524,   518,  474,  548, 448,  552,  444,  552, 442,  552,  444,
+      550, 444,   552,  440,  556, 440,  556,  438,  556, 440,  552,  442,
+      552, 444,   552,  442,  552, 444,  550,  470,  526, 466,  524,  470,
+      470, 524,   470,  524,  518, 476,  548,  444,  552, 444,  556,  440,
+      552, 442,   552,  444,  550, 1436, 556,  1436, 552, 2946, 3026, 8918,
+      550, 1440,  552,  444,  548, 468,  526,  468,  470, 526,  470,  526,
+      542, 452,   548,  444,  552, 1440, 550,  444,  552, 444,  552,  1436,
+      556, 438,   552,  442,  552, 1440, 552,  1440, 552, 1460, 526,  1464,
+      470, 1516,  548,  1444, 552, 444,  552,  442,  552, 444,  552,  438,
+      556, 440,   556,  440,  552, 444,  552,  444,  552, 444,  552,  444,
+      552, 444,   548,  448,  546, 470,  526,  468,  526, 470,  470,  524,
+      520, 470,   548,  448,  552, 444,  552,  444,  552, 444,  552,  444,
+      552, 438,   556,  440,  556, 438,  552,  444,  552, 442,  552,  444,
+      552, 444,   552,  444,  552, 470,  526,  466,  526, 470,  470,  524,
+      518, 478,   546,  448,  552, 2920, 3052, 8916, 552, 1434, 556,  440,
+      556, 438,   552,  444,  552, 442,  552,  442,  552, 442,  552,  444,
+      548, 1444,  548,  470,  526, 470,  522,  1466, 470, 1520, 548,  1438,
+      556, 1436,  552,  1440, 552, 442,  552,  1436, 552, 1440, 552,  1440,
+      552, 442,   552,  470,  522, 1466, 526,  1466, 470, 1516, 552,  444,
+      552, 442,   552,  444,  552, 1436, 556,  1436, 552, 1440, 550,  444,
+      552, 444,   552,  444,  548, 448,  546,  448,  548, 470,  526,  1462,
+      474, 1518,  548,  1440, 552, 1438, 556,  440,  550, 444,  552,  444,
+      552, 444,   552,  440,  556, 1436, 552,  444,  552, 444,  552,  444,
+      550, 470,   522,  470,  524, 470,  470,  524,  518, 1474, 548,  1440,
+      556};
+
+  uint8_t expectedState[kSamsungAcExtendedStateLength] = {
+      0x02, 0xA9, 0x0F, 0x00, 0x00, 0x00, 0xC0,
+      0x01, 0xC9, 0x0F, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0xF9, 0xCE, 0x71, 0xE0, 0x41, 0xC0};
+
+  irsend.sendRaw(sendOff, 349, 38000);
+  irsend.makeDecodeResult();
+  ASSERT_TRUE(irrecv.decode(&irsend.capture));
+  ASSERT_EQ(SAMSUNG_AC, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsungAcExtendedBits, irsend.capture.bits);
+  EXPECT_STATE_EQ(expectedState, irsend.capture.state, irsend.capture.bits);
 
   IRSamsungAc samsung(0);
-  samsung.setRaw(irsend.capture.state);
+  samsung.setRaw(irsend.capture.state, irsend.capture.bits / 8);
   EXPECT_EQ(
-      "Power: On, Mode: 1 (COOL), Temp: 20C, Fan: 0 (AUTO), Swing: Off, "
-      "Beep: Off, Clean: Off, Quiet: Off",
+      "Power: Off, Mode: 4 (Heat), Temp: 30C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
       samsung.toString());
+}
+
+TEST(TestSendSamsung36, SendDataOnly) {
+  IRsendTest irsend(0);
+  irsend.begin();
+
+  irsend.reset();
+  irsend.sendSamsung36(0);
+  EXPECT_EQ(
+      "f38000d50"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490"
+      "m512s26880",
+      irsend.outputStr());
+  irsend.sendSamsung36(0x400E00FF);
+  EXPECT_EQ(
+      "f38000d50"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880",
+      irsend.outputStr());
+  irsend.reset();
+}
+
+// General housekeeping
+TEST(TestSamsung36, Housekeeping) {
+  ASSERT_EQ("SAMSUNG36", typeToString(decode_type_t::SAMSUNG36));
+  ASSERT_EQ(decode_type_t::SAMSUNG36, strToDecodeType("SAMSUNG36"));
+  ASSERT_FALSE(hasACState(decode_type_t::SAMSUNG36));
+  ASSERT_EQ(kSamsung36Bits, IRsend::defaultBits(decode_type_t::SAMSUNG36));
+}
+
+// Test sending with different repeats.
+TEST(TestSendSamsung36, SendWithRepeats) {
+  IRsendTest irsend(0);
+  irsend.begin();
+
+  irsend.reset();
+  irsend.sendSamsung36(0x400E00FF, kSamsung36Bits, 1);  // 1 repeat.
+  EXPECT_EQ(
+      "f38000d50"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880",
+      irsend.outputStr());
+      irsend.sendSamsung36(0x400E00FF, kSamsung36Bits, 2);  // 2 repeats.
+  EXPECT_EQ(
+      "f38000d50"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880"
+      "m4515s4438"
+      "m512s490m512s490m512s490m512s490m512s490m512s1468m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s490m512s490m512s490m512s490"
+      "m512s4438"
+      "m512s1468m512s1468m512s1468m512s490m512s490m512s490m512s490m512s490"
+      "m512s490m512s490m512s490m512s490m512s1468m512s1468m512s1468m512s1468"
+      "m512s1468m512s1468m512s1468m512s1468"
+      "m512s26880",
+      irsend.outputStr());
+}
+
+TEST(TestDecodeSamsung36, RealExample) {
+  IRsendTest irsend(0);
+  IRrecv irrecv(0);
+  irsend.begin();
+
+  irsend.reset();
+  uint16_t rawData[77] = {
+      4542, 4438, 568, 432, 562, 436, 536, 462, 538, 460, 538, 460, 564, 1434,
+      564, 434, 534, 464, 536, 462, 562, 436, 536, 464, 564, 432, 538, 462, 536,
+      464, 534, 464, 564, 420, 566, 4414, 538, 1462, 566, 1432, 562, 1436, 536,
+      462, 564, 436, 562, 436, 560, 436, 562, 436, 562, 436, 560, 438, 536, 462,
+      562, 436, 562, 1436, 562, 1434, 536, 1462, 564, 1434, 562, 1436, 564,
+      1436, 534, 1462, 534, 1464, 536};  // UNKNOWN E4CD1208
+
+  irsend.sendRaw(rawData, 77, 38000);
+  irsend.makeDecodeResult();
+  ASSERT_TRUE(irrecv.decode(&irsend.capture));
+  ASSERT_EQ(SAMSUNG36, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsung36Bits, irsend.capture.bits);
+  EXPECT_EQ(0x400E00FF, irsend.capture.value);
+  EXPECT_EQ(0xE00FF, irsend.capture.command);
+  EXPECT_EQ(0x400, irsend.capture.address);
+}
+
+TEST(TestDecodeSamsung36, SyntheticExample) {
+  IRsendTest irsend(0);
+  IRrecv irrecv(0);
+  irsend.begin();
+  irsend.reset();
+
+  irsend.sendSamsung36(0x400E00FF);
+  irsend.makeDecodeResult();
+  ASSERT_TRUE(irrecv.decodeSamsung36(&irsend.capture));
+  ASSERT_EQ(SAMSUNG36, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsung36Bits, irsend.capture.bits);
+  EXPECT_EQ(0x400E00FF, irsend.capture.value);
+  EXPECT_EQ(0xE00FF, irsend.capture.command);
+  EXPECT_EQ(0x400, irsend.capture.address);
+}
+
+// https://github.com/crankyoldgit/IRremoteESP8266/issues/604
+TEST(TestIRSamsungAcClass, Issue604SendPowerHack) {
+  IRSamsungAc ac(0);
+  ac.begin();
+  ac.stateReset(false);  // Disable the initial forced sending of a power mesg.
+
+  std::string freqduty = "f38000d50";
+
+  std::string poweron =
+      "m690s17844"
+      "m3086s8864"
+      "m586s436m586s1432m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s1432m586s436m586s436m586s1432m586s436m586s436m586s1432"
+      "m586s1432m586s1432m586s1432m586s1432m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s1432"
+      "m586s2886"
+      "m3086s8864"
+      "m586s1432m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s1432m586s436m586s436m586s1432m586s436m586s1432m586s1432"
+      "m586s1432m586s1432m586s1432m586s1432m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s2886"
+      "m3086s8864"
+      "m586s1432m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s1432m586s436m586s436m586s436m586s1432m586s1432m586s1432"
+      "m586s436m586s1432m586s1432m586s1432m586s1432m586s1432m586s1432m586s1432"
+      "m586s1432m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s1432"
+      "m586s1432m586s436m586s436m586s436m586s1432m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s1432"
+      "m586s100000";
+  std::string settings =
+      "m690s17844"
+      "m3086s8864"
+      "m586s436m586s1432m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s1432m586s436m586s436m586s1432m586s436m586s436m586s1432"
+      "m586s1432m586s1432m586s1432m586s1432m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s1432"
+      "m586s2886"
+      "m3086s8864"
+      "m586s1432m586s436m586s436m586s436m586s436m586s436m586s436m586s436"
+      "m586s436m586s1432m586s436m586s436m586s1432m586s436m586s1432m586s1432"
+      "m586s436m586s1432m586s1432m586s1432m586s436m586s1432m586s436m586s1432"
+      "m586s1432m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s436"
+      "m586s436m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s436"
+      "m586s1432m586s436m586s436m586s1432m586s1432m586s436m586s436m586s436"
+      "m586s436m586s436m586s436m586s436m586s1432m586s1432m586s1432m586s1432"
+      "m586s100000";
+  std::string text = "Power: On, Mode: 1 (Cool), Temp: 23C, Fan: 4 (Med), "
+                     "Swing: On, Beep: Off, Clean: Off, Quiet: Off, "
+                     "Powerful: Off, Breeze: Off, Light: On, Ion: Off";
+  // Don't do a setPower()/on()/off() as that will trigger the special message.
+  // So it should only be the normal "settings" message.
+  ac.setTemp(23);
+  ac.setMode(kSamsungAcCool);
+  ac.setFan(kSamsungAcFanMed);
+  ac.send();
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + settings, ac._irsend.outputStr());
+  // Ensure the power state is changed by changing it and sending it.
+  ac.off();
+  ac.send();
+  ac._irsend.reset();  // Clear the capture buffer.
+  // Now trigger a special power message by using a power method.
+  ac.on();
+  ac.send();  // This should result in two messages. 1 x extended + 1 x normal.
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + poweron + settings, ac._irsend.outputStr());
+  ac._irsend.reset();  // Clear the capture buffer.
+  // Subsequent sending should be just the "settings" message.
+  ac.send();
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + settings, ac._irsend.outputStr());
+  ac._irsend.reset();  // Clear the capture buffer.
+  ac.setPower(true);  // Note: The power state hasn't changed from previous.
+  ac.send();  // This should result in a normal setting message.
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + settings, ac._irsend.outputStr());
+
+  ac._irsend.reset();  // Clear the capture buffer.
+  ac.setPower(false);
+  ac.setPower(true);  // Note: The power state hasn't changed from the last sent
+  ac.send();  // This should result in a normal setting message.
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + settings, ac._irsend.outputStr());
+
+  ac.stateReset();  // Normal `stateReset` defaults to send the power message
+                    // on first send.
+  ac._irsend.reset();  // Clear the capture buffer.
+  ac.setTemp(23);
+  ac.setMode(kSamsungAcCool);
+  ac.setFan(kSamsungAcFanMed);
+  ac.send();
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + poweron + settings, ac._irsend.outputStr());
+  ac._irsend.reset();  // Clear the capture buffer.
+  ac.send();  // Subsequent send() should just be a settings message.
+  EXPECT_EQ(text, ac.toString());
+  EXPECT_EQ(freqduty + settings, ac._irsend.outputStr());
+}
+
+TEST(TestIRSamsungAcClass, toCommon) {
+  IRSamsungAc ac(0);
+  ac.setPower(true);
+  ac.setMode(kSamsungAcCool);
+  ac.setTemp(20);
+  ac.setFan(kSamsungAcFanAuto);
+  ac.setSwing(true);
+  ac.setBeep(true);
+  ac.setClean(true);
+  ac.setQuiet(true);
+  ac.setDisplay(true);
+  ac.setIon(true);
+  // Now test it.
+  ASSERT_EQ(decode_type_t::SAMSUNG_AC, ac.toCommon().protocol);
+  ASSERT_EQ(-1, ac.toCommon().model);
+  ASSERT_TRUE(ac.toCommon().power);
+  ASSERT_TRUE(ac.toCommon().celsius);
+  ASSERT_EQ(20, ac.toCommon().degrees);
+  ASSERT_EQ(stdAc::opmode_t::kCool, ac.toCommon().mode);
+  ASSERT_EQ(stdAc::fanspeed_t::kAuto, ac.toCommon().fanspeed);
+  ASSERT_EQ(stdAc::swingv_t::kAuto, ac.toCommon().swingv);
+  ASSERT_FALSE(ac.toCommon().turbo);
+  ASSERT_TRUE(ac.toCommon().quiet);
+  ASSERT_TRUE(ac.toCommon().light);
+  ASSERT_TRUE(ac.toCommon().filter);
+  ASSERT_TRUE(ac.toCommon().clean);
+  ASSERT_TRUE(ac.toCommon().beep);
+  // Unsupported.
+  ASSERT_EQ(stdAc::swingh_t::kOff, ac.toCommon().swingh);
+  ASSERT_FALSE(ac.toCommon().econo);
+  ASSERT_EQ(-1, ac.toCommon().sleep);
+  ASSERT_EQ(-1, ac.toCommon().clock);
+}
+
+TEST(TestDecodeSamsungAC, Issue734QuietSetting) {
+  IRsendTest irsend(0);
+  IRrecv irrecv(0);
+  irsend.begin();
+
+  irsend.reset();
+  // QUIET MODE ON data from:
+  //  https://github.com/crankyoldgit/IRremoteESP8266/issues/734#issuecomment-499791618
+  uint16_t quietOn[233] = {
+      624, 17360, 3076, 8902, 520, 476, 520, 1472, 520, 476, 520, 474, 520, 476,
+      520, 476, 520, 474, 522, 476, 520, 478, 518, 1476, 516, 500, 494, 502,
+      548, 448, 546, 450, 544, 452, 522, 1468, 520, 1474, 520, 1472, 520, 1472,
+      520, 1472, 520, 476, 520, 476, 518, 478, 516, 480, 516, 500, 496, 500,
+      494, 502, 550, 446, 546, 450, 544, 452, 524, 472, 522, 474, 518, 476, 520,
+      476, 520, 474, 522, 474, 520, 474, 520, 476, 520, 474, 520, 476, 518, 478,
+      518, 480, 516, 480, 516, 502, 494, 502, 548, 1444, 524, 472, 522, 472,
+      520, 474, 518, 478, 518, 476, 520, 476, 520, 1472, 520, 1470, 520, 1472,
+      520, 1474, 516, 2980, 2998, 8980, 498, 1498, 548, 448, 526, 470, 544, 452,
+      524, 472, 520, 474, 520, 476, 520, 476, 520, 476, 520, 1472, 520, 474,
+      520, 476, 520, 1474, 518, 1476, 516, 1496, 496, 1498, 548, 446, 546, 1446,
+      524, 1468, 518, 1474, 520, 1472, 520, 1472, 520, 1472, 520, 1474, 518,
+      1476, 518, 480, 516, 500, 496, 528, 520, 1446, 544, 1446, 524, 1470, 518,
+      476, 520, 476, 520, 474, 520, 476, 520, 474, 520, 476, 520, 474, 520, 476,
+      520, 476, 518, 1476, 516, 482, 514, 502, 548, 448, 548, 1442, 544, 452,
+      522, 474, 518, 476, 518, 476, 520, 476, 520, 474, 520, 476, 520, 1472,
+      520, 1470, 522, 1474, 518, 1476, 536};
+
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x82, 0x0F, 0x00, 0x00, 0x20, 0xF0,
+      0x01, 0xF2, 0xFE, 0x71, 0x00, 0x11, 0xF0};
+
+  irsend.sendRaw(quietOn, 233, 38000);
+  irsend.makeDecodeResult();
+  ASSERT_TRUE(irrecv.decode(&irsend.capture));
+  ASSERT_EQ(SAMSUNG_AC, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsungAcBits, irsend.capture.bits);
+  EXPECT_STATE_EQ(expectedState, irsend.capture.state, irsend.capture.bits);
+
+  IRSamsungAc ac(0);
+  ac.setRaw(irsend.capture.state, irsend.capture.bits / 8);
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: On, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+
+  // Make sure the ac class state is in something wildly different first.
+  ac.stateReset();
+  ac.setPower(false);
+  ac.setMode(kSamsungAcAuto);
+  ac.setTemp(30);
+  ac.setSwing(true);
+  ac.setBeep(true);
+  ac.setClean(true);
+  ac.setQuiet(false);
+  // See if we can build the state from scratch.
+  ac.setPower(true);
+  ac.setMode(kSamsungAcCool);
+  ac.setTemp(16);
+  ac.setSwing(false);
+  ac.setBeep(false);
+  ac.setClean(false);
+  ac.setQuiet(true);
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: On, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+  // Check it matches the known good/expected state.
+  EXPECT_STATE_EQ(expectedState, ac.getRaw(), kSamsungAcBits);
+}
+
+TEST(TestDecodeSamsungAC, Issue734PowerfulOff) {
+  IRsendTest irsend(0);
+  IRrecv irrecv(0);
+  irsend.begin();
+
+  irsend.reset();
+  // 1st Powerful off data from:
+  //  https://github.com/crankyoldgit/IRremoteESP8266/issues/734#issuecomment-500114580
+  uint16_t powerfulOff[233] = {
+      652, 17336, 3078, 8910, 562, 456, 546, 1448, 550, 446, 552, 444, 552, 444,
+      550, 446, 550, 446, 552, 446, 550, 446, 552, 1440, 550, 446, 550, 446,
+      550, 1470, 478, 518, 502, 492, 536, 1458, 542, 1450, 552, 1440, 552, 1442,
+      552, 1442, 550, 446, 550, 446, 550, 446, 552, 444, 550, 446, 550, 446,
+      550, 472, 524, 472, 480, 516, 510, 488, 538, 458, 542, 452, 548, 448, 550,
+      446, 550, 446, 550, 444, 552, 444, 552, 444, 552, 444, 552, 444, 552, 444,
+      552, 444, 550, 446, 550, 446, 550, 472, 524, 472, 482, 514, 510, 486, 536,
+      460, 542, 454, 546, 450, 550, 446, 552, 1442, 552, 1442, 550, 1442, 552,
+      1440, 508, 2994, 3030, 8932, 552, 1638, 450,  // <= (was 356)
+      // Above hack due to poor data.
+      470, 526, 470, 506, 492, 510,
+      486, 542, 454, 544, 450, 550, 446, 554, 444, 550, 1442, 550, 444, 550,
+      446, 550, 1442, 552, 1440, 550, 1442, 550, 1470, 524, 470, 480, 1512, 512,
+      1480, 546, 1448, 550, 1442, 552, 1442, 552, 1442, 550, 1440, 552, 1440,
+      552, 446, 550, 444, 552, 444, 550, 1468, 484, 1510, 512, 1482, 544, 452,
+      550, 446, 552, 442, 554, 444, 552, 444, 554, 442, 554, 442, 552, 444, 554,
+      442, 554, 1440, 552, 444, 554, 442, 554, 468, 528, 1466, 508, 488, 512,
+      484, 544, 450, 550, 446, 554, 442, 556, 442, 554, 442, 554, 1438, 554,
+      1438, 554, 1438, 554, 1438, 562};  // UNKNOWN 7B551B62};
+
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xF2, 0xFE, 0x71, 0x00, 0x11, 0xF0};
+
+  irsend.sendRaw(powerfulOff, 233, 38000);
+  irsend.makeDecodeResult();
+  ASSERT_TRUE(irrecv.decodeSamsungAC(&irsend.capture));
+  ASSERT_EQ(SAMSUNG_AC, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsungAcBits, irsend.capture.bits);
+  EXPECT_STATE_EQ(expectedState, irsend.capture.state, irsend.capture.bits);
+
+  IRSamsungAc ac(0);
+  ac.setRaw(irsend.capture.state, irsend.capture.bits / 8);
+  EXPECT_EQ(
+      "Power: On, Mode: 1 (Cool), Temp: 16C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+}
+
+// Ref: https://github.com/crankyoldgit/IRremoteESP8266/issues/1062
+TEST(TestIRSamsungAcClass, SetAndGetBreeze) {
+  IRSamsungAc ac(kGpioUnused);
+  ac.setFan(kSamsungAcFanMed);
+  ac.setBreeze(false);
+  EXPECT_FALSE(ac.getBreeze());
+  EXPECT_EQ(kSamsungAcFanMed, ac.getFan());
+  ac.setBreeze(true);
+  EXPECT_TRUE(ac.getBreeze());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());  // Breeze sets fan to auto.
+  ac.setBreeze(false);
+  EXPECT_FALSE(ac.getBreeze());
+  EXPECT_EQ(kSamsungAcFanAuto, ac.getFan());
+
+  // Breeze and Powerful/Turbo are mutually exclusive.
+  ac.setBreeze(true);
+  EXPECT_TRUE(ac.getBreeze());
+  ac.setPowerful(true);
+  EXPECT_FALSE(ac.getBreeze());
+
+  // Check against real messages.
+  // MODE FAN, 24C WINDFREE ON
+  const uint8_t on[14] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0, 0x01, 0xB2, 0xFE, 0x7B, 0x80,
+      0x31, 0xF0};
+  ac.setRaw(on);
+  ASSERT_TRUE(ac.getBreeze());
+  EXPECT_EQ(
+      "Power: On, Mode: 3 (Fan), Temp: 24C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: On, "
+      "Light: On, Ion: Off",
+      ac.toString());
+  // MODE FAN, 24C WINDFREE OFF, FAN = LOW
+  const uint8_t off[14] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0, 0x01, 0xC2, 0xFE, 0x71, 0x80,
+      0x35, 0xF0};
+  ac.setRaw(off);
+  ASSERT_FALSE(ac.getBreeze());
+  EXPECT_EQ(
+      "Power: On, Mode: 3 (Fan), Temp: 24C, Fan: 2 (Low), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: On, Ion: Off",
+      ac.toString());
+}
+
+TEST(TestDecodeSamsungAC, Issue1227VeryPoorSignal) {
+  IRsendTest irsend(kGpioUnused);
+  IRrecv irrecv(kGpioUnused);
+  irsend.begin();
+
+  irsend.reset();
+  // Data from row 5 of:
+  // https://cryptpad.fr/sheet/#/2/sheet/view/e1PSfhwjfTGCAPbse4h28RjvvG+YCiLgH3SxhxTNFQQ/
+  uint16_t rawData[233] = {
+      600, 17900,
+      2962, 8986,
+      472, 536, 454, 1542, 440, 532, 462, 530, 484, 508, 490, 500, 496, 496,
+      496, 494, 500, 500, 490, 1512, 470, 506, 492, 502, 488, 1490, 498, 522,
+      468, 526, 468, 1516, 466, 1544, 438, 1546, 446, 1526, 484, 1516, 470, 512,
+      480, 520, 474, 510, 478, 522, 468, 526, 466, 532, 460, 528, 466, 528, 464,
+      536, 460, 552, 436, 560, 430, 562, 432, 564, 430, 558, 438, 556, 450, 544,
+      458, 536, 462, 536, 454, 530, 462, 530, 462, 536, 458, 534, 460, 532, 458,
+      534, 462, 546, 446, 556, 434, 548, 444, 566, 428, 564, 430, 560, 428, 566,
+      432, 562, 432, 1568, 436, 1554, 430, 1562, 426, 1554,
+      434, 3060,
+      2902, 9020,
+      432, 1550, 434, 548, 444, 562, 434, 564, 422, 568, 430, 566, 420, 572,
+      426, 574, 422, 560, 434, 1574, 432, 542, 448, 548, 444, 1556, 436, 1552,
+      426, 1544, 440, 1558, 428, 564, 434, 1560, 428, 1578, 408, 1582, 408,
+      1582, 412, 1570, 430, 1546, 444, 1548, 442, 1548, 436, 542, 448, 540, 440,
+      556, 448, 554, 434, 1566, 426, 1588, 402, 570, 422, 568, 426, 582, 414,
+      568, 426, 570, 424, 1576, 426, 548, 442, 562, 426, 568, 430, 1564, 424,
+      566, 416, 558, 438, 578, 410, 578, 428, 566, 416, 576, 410, 1604, 394,
+      592, 392, 604, 402, 578, 416, 590, 404, 1586, 404, 1584, 408, 1578, 412,
+      1572, 412};  // UNKNOWN 1C646112
+
+  uint8_t expectedState[kSamsungAcStateLength] = {
+      0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
+      0x01, 0xF2, 0xFE, 0x61, 0x10, 0x81, 0xF0};
+
+  irsend.sendRaw(rawData, 233, 38000);
+  irsend.makeDecodeResult();
+  // Data is so bad we need to tweak the tolerance massively to get a match.
+  irrecv.setTolerance(40);
+  ASSERT_TRUE(irrecv.decode(&irsend.capture));
+  ASSERT_EQ(SAMSUNG_AC, irsend.capture.decode_type);
+  EXPECT_EQ(kSamsungAcBits, irsend.capture.bits);
+  EXPECT_STATE_EQ(expectedState, irsend.capture.state, irsend.capture.bits);
+  EXPECT_EQ(
+      "Power: On, Mode: 0 (Auto), Temp: 17C, Fan: 0 (Auto), Swing: Off, "
+      "Beep: Off, Clean: Off, Quiet: Off, Powerful: Off, Breeze: Off, "
+      "Light: Off, Ion: Off",
+      IRAcUtils::resultAcToString(&irsend.capture));
+  stdAc::state_t r, p;
+  ASSERT_TRUE(IRAcUtils::decodeToState(&irsend.capture, &r, &p));
 }
